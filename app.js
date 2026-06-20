@@ -36,6 +36,7 @@ const questionsScreen = document.querySelector("#questionsScreen");
 const openMailbox = document.querySelector("#openMailbox");
 const backHome = document.querySelector("#backHome");
 const questionGrid = document.querySelector("#questionGrid");
+const pageMessage = document.querySelector("#pageMessage");
 const emptyState = document.querySelector("#emptyState");
 const addQuestion = document.querySelector("#addQuestion");
 const composeModal = document.querySelector("#composeModal");
@@ -74,6 +75,7 @@ function registerEvents() {
   adminEntry.addEventListener("click", openAdmin);
   adminForm.addEventListener("submit", submitAdmin);
   logoutAdmin.addEventListener("click", exitAdmin);
+  document.addEventListener("click", closeModalByButton);
 }
 
 async function refreshQuestions() {
@@ -143,7 +145,7 @@ function loadSession() {
 }
 
 async function saveData() {
-  if (!USE_SHARED_API) {
+  if (!USE_SUPABASE_DIRECT) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
   }
 }
@@ -280,11 +282,15 @@ function previewImage() {
 async function submitQuestion(event) {
   event.preventDefault();
 
+  const submitButton = composeForm.querySelector(".primary-button");
   const text = questionText.value.trim();
   if (!text && !state.pendingImage) {
     composeError.textContent = "\u6587\u5b57\u548c\u56fe\u7247\u81f3\u5c11\u586b\u4e00\u4e2a\u3002";
     return;
   }
+
+  composeError.textContent = "";
+  setBusy(submitButton, true, "\u6295\u9012\u4e2d...");
 
   const question = {
     author: state.session.nickname,
@@ -292,35 +298,41 @@ async function submitQuestion(event) {
     image: state.pendingImage,
   };
 
-  if (USE_SUPABASE_DIRECT) {
-    await supabaseJson(`/${SUPABASE_TABLE}`, {
-      method: "POST",
-      headers: {
-        Prefer: "return=minimal",
-      },
-      body: {
-        author: question.author,
-        text: question.text,
-        image: question.image,
+  try {
+    if (USE_SUPABASE_DIRECT) {
+      await supabaseJson(`/${SUPABASE_TABLE}`, {
+        method: "POST",
+        headers: {
+          Prefer: "return=minimal",
+        },
+        body: {
+          author: question.author,
+          text: question.text,
+          image: question.image,
+          comments: [],
+        },
+      });
+    } else {
+      state.data.questions.unshift({
+        id: crypto.randomUUID(),
+        ...question,
         comments: [],
-      },
-    });
-    await refreshQuestions();
-  } else {
-    state.data.questions.unshift({
-      id: crypto.randomUUID(),
-      ...question,
-      comments: [],
-      createdAt: Date.now(),
-    });
-    await saveData();
-    renderQuestions();
-  }
+        createdAt: Date.now(),
+      });
+      await saveData();
+    }
 
-  state.lastSeenQuestionId = null;
-  saveLastSeen();
-  updateNewDot();
-  composeModal.close();
+    composeModal.close();
+    homeScreen.classList.remove("active");
+    questionsScreen.classList.add("active");
+    await refreshQuestions();
+    markQuestionsSeen();
+    showPageMessage("\u6295\u9012\u6210\u529f\u3002");
+  } catch {
+    composeError.textContent = "\u6295\u9012\u5931\u8d25\uff0c\u8bf7\u786e\u8ba4 Supabase SQL \u5df2\u7ecf\u91cd\u65b0\u8fd0\u884c\u3002";
+  } finally {
+    setBusy(submitButton, false);
+  }
 }
 
 async function submitComment(event) {
@@ -337,59 +349,72 @@ async function submitComment(event) {
     return;
   }
 
-  if (USE_SUPABASE_DIRECT) {
-    await supabaseJson("/rpc/add_mailbox_comment", {
-      method: "POST",
-      body: {
-        question_id: questionId,
-        comment_author: getDisplayName(),
-        comment_text: text,
-      },
+  try {
+    if (USE_SUPABASE_DIRECT) {
+      await supabaseJson("/rpc/add_mailbox_comment", {
+        method: "POST",
+        body: {
+          question_id: questionId,
+          comment_author: getDisplayName(),
+          comment_text: text,
+        },
+      });
+      input.value = "";
+      await refreshQuestions();
+      return;
+    }
+
+    const question = state.data.questions.find((item) => item.id === questionId);
+    if (!question) {
+      return;
+    }
+
+    question.comments.push({
+      id: crypto.randomUUID(),
+      author: getDisplayName(),
+      text,
+      createdAt: Date.now(),
     });
+
     input.value = "";
-    await refreshQuestions();
-    return;
+    await saveData();
+    renderQuestions();
+  } catch {
+    showPageMessage("\u8bc4\u8bba\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002");
   }
-
-  const question = state.data.questions.find((item) => item.id === questionId);
-  if (!question) {
-    return;
-  }
-
-  question.comments.push({
-    id: crypto.randomUUID(),
-    author: getDisplayName(),
-    text,
-    createdAt: Date.now(),
-  });
-
-  input.value = "";
-  await saveData();
-  renderQuestions();
 }
 
 async function handleQuestionClick(event) {
-  const deleteId = event.target.dataset.delete;
+  const deleteButton = event.target.closest("[data-delete]");
+  const deleteId = deleteButton?.dataset.delete;
   if (!deleteId || !state.session.isAdmin) {
     return;
   }
 
-  if (USE_SUPABASE_DIRECT) {
-    await supabaseJson("/rpc/delete_mailbox_question", {
-      method: "POST",
-      body: {
-        question_id: deleteId,
-        admin_key: ADMIN_KEY,
-      },
-    });
-    await refreshQuestions();
-  } else {
-    state.data.questions = state.data.questions.filter((question) => question.id !== deleteId);
-    await saveData();
-    renderQuestions();
-  }
+  setBusy(deleteButton, true, "\u5220\u9664\u4e2d...");
 
-  updateNewDot();
+  try {
+    if (USE_SUPABASE_DIRECT) {
+      await supabaseJson("/rpc/delete_mailbox_question", {
+        method: "POST",
+        body: {
+          question_id: deleteId,
+          admin_key: ADMIN_KEY,
+        },
+      });
+      await refreshQuestions();
+    } else {
+      state.data.questions = state.data.questions.filter((question) => question.id !== deleteId);
+      await saveData();
+      renderQuestions();
+    }
+
+    updateNewDot();
+    showPageMessage("\u5df2\u5220\u9664\u95ee\u9898\u3002");
+  } catch {
+    setBusy(deleteButton, false);
+    showPageMessage("\u5220\u9664\u5931\u8d25\uff0c\u8bf7\u786e\u8ba4 Supabase SQL \u5df2\u7ecf\u91cd\u65b0\u8fd0\u884c\u3002");
+  }
 }
 
 function openAdmin() {
@@ -420,6 +445,44 @@ function exitAdmin() {
   renderQuestions();
 }
 
+function closeModalByButton(event) {
+  const button = event.target.closest("[data-close-modal]");
+  if (!button) {
+    return;
+  }
+
+  const modal = button.closest("dialog");
+  if (modal) {
+    modal.close();
+  }
+}
+
+function setBusy(button, isBusy, busyText) {
+  if (!button) {
+    return;
+  }
+
+  if (isBusy) {
+    button.dataset.originalText = button.textContent;
+    button.textContent = busyText;
+    button.disabled = true;
+    return;
+  }
+
+  button.textContent = button.dataset.originalText || button.textContent;
+  button.disabled = false;
+  delete button.dataset.originalText;
+}
+
+function showPageMessage(message) {
+  pageMessage.textContent = message;
+  window.setTimeout(() => {
+    if (pageMessage.textContent === message) {
+      pageMessage.textContent = "";
+    }
+  }, 2600);
+}
+
 async function supabaseFetch(pathname, options = {}) {
   const headers = {
     apikey: SUPABASE_PUBLISHABLE_KEY,
@@ -446,7 +509,8 @@ async function supabaseJson(pathname, options = {}) {
     return null;
   }
 
-  return response.json();
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
 }
 
 function fromSupabaseQuestion(row) {

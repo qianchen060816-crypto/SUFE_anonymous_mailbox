@@ -2,7 +2,7 @@ create extension if not exists "pgcrypto";
 
 create table if not exists public.mailbox_questions (
   id uuid primary key default gen_random_uuid(),
-  author text not null default '匿名同学',
+  author text not null default 'anonymous',
   text text not null default '',
   image text not null default '',
   comments jsonb not null default '[]'::jsonb,
@@ -10,6 +10,9 @@ create table if not exists public.mailbox_questions (
 );
 
 alter table public.mailbox_questions enable row level security;
+
+grant usage on schema public to anon, authenticated;
+grant select, insert on public.mailbox_questions to anon, authenticated;
 
 drop policy if exists "Anyone can read mailbox questions" on public.mailbox_questions;
 create policy "Anyone can read mailbox questions"
@@ -40,7 +43,7 @@ begin
   set comments = comments || jsonb_build_array(
     jsonb_build_object(
       'id', gen_random_uuid()::text,
-      'author', left(coalesce(nullif(trim(comment_author), ''), '匿名同学'), 30),
+      'author', left(coalesce(nullif(trim(comment_author), ''), 'anonymous'), 30),
       'text', left(coalesce(trim(comment_text), ''), 160),
       'createdAt', floor(extract(epoch from now()) * 1000)
     )
@@ -61,7 +64,7 @@ set search_path = public
 as $$
 begin
   if admin_key <> '102938' then
-    raise exception '密钥不正确';
+    raise exception 'bad admin key';
   end if;
 
   delete from public.mailbox_questions

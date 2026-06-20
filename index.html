@@ -45,6 +45,7 @@
         </header>
 
         <div class="question-grid" id="questionGrid"></div>
+        <p class="page-message" id="pageMessage"></p>
         <div class="empty-state" id="emptyState">
           还没有问题。点右下角的加号，投递第一封匿名信吧。
         </div>
@@ -55,7 +56,7 @@
 
     <dialog class="modal" id="adminModal">
       <form method="dialog" class="modal-card" id="adminForm">
-        <button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button>
+        <button class="close-button" value="cancel" type="button" data-close-modal aria-label="关闭">×</button>
         <h3>管理员入口</h3>
         <p>输入密钥后，评论会显示为管理员，也可以删除问题。</p>
         <label>
@@ -69,7 +70,7 @@
 
     <dialog class="modal" id="composeModal">
       <form method="dialog" class="modal-card" id="composeForm">
-        <button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button>
+        <button class="close-button" value="cancel" type="button" data-close-modal aria-label="关闭">×</button>
         <h3>提出一个问题</h3>
         <label>
           文字
