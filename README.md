@@ -34,15 +34,9 @@ http://localhost:3000
 
 注意：`service_role secret key` 只能放在部署平台的环境变量里，不要发给别人，也不要写进前端页面。
 
-## 部署
+## Vercel 部署
 
-把整个文件夹上传到 GitHub，然后在 Render、Railway、Fly.io 等支持 Node.js 的平台创建 Web Service。
-
-启动命令：
-
-```bash
-npm start
-```
+把整个文件夹上传到 GitHub，然后在 Vercel 导入这个仓库。
 
 环境变量：
 
