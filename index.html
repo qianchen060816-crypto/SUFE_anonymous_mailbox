@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>匿名提问小信箱</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="screen home-screen active" id="homeScreen">
+        <button class="admin-entry" id="adminEntry" type="button">管理员</button>
+
+        <div class="home-copy">
+          <p class="eyebrow">匿名提问小信箱</p>
+          <h1>把想问的话，悄悄放进信箱里。</h1>
+          <p id="nicknameLine">正在生成你的匿名昵称...</p>
+        </div>
+
+        <button class="mailbox-button" id="openMailbox" type="button" aria-label="进入问题信箱">
+          <span class="new-dot" id="newDot" aria-hidden="true"></span>
+          <span class="mailbox">
+            <span class="mailbox-top"></span>
+            <span class="mailbox-door"></span>
+            <span class="mailbox-flag"></span>
+            <span class="mailbox-post"></span>
+            <span class="mailbox-base"></span>
+          </span>
+        </button>
+
+        <p class="hint">点击邮箱进入问题界面</p>
+      </section>
+
+      <section class="screen questions-screen" id="questionsScreen">
+        <header class="questions-header">
+          <button class="ghost-button" id="backHome" type="button">返回</button>
+          <div>
+            <p class="eyebrow">问题墙</p>
+            <h2>大家的问题</h2>
+          </div>
+          <div class="identity-box">
+            <p class="current-name" id="currentName"></p>
+            <button class="logout-admin" id="logoutAdmin" type="button">退出管理员</button>
+          </div>
+        </header>
+
+        <div class="question-grid" id="questionGrid"></div>
+        <div class="empty-state" id="emptyState">
+          还没有问题。点右下角的加号，投递第一封匿名信吧。
+        </div>
+
+        <button class="add-button" id="addQuestion" type="button" aria-label="提出问题">+</button>
+      </section>
+    </main>
+
+    <dialog class="modal" id="adminModal">
+      <form method="dialog" class="modal-card" id="adminForm">
+        <button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button>
+        <h3>管理员入口</h3>
+        <p>输入密钥后，评论会显示为管理员，也可以删除问题。</p>
+        <label>
+          密钥
+          <input id="adminKey" type="password" autocomplete="off" placeholder="请输入密钥" />
+        </label>
+        <p class="form-error" id="adminError"></p>
+        <button class="primary-button" type="submit">确认</button>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="composeModal">
+      <form method="dialog" class="modal-card" id="composeForm">
+        <button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button>
+        <h3>提出一个问题</h3>
+        <label>
+          文字
+          <textarea id="questionText" maxlength="240" placeholder="写下你想匿名提问的内容"></textarea>
+        </label>
+        <label>
+          图片
+          <input id="questionImage" type="file" accept="image/*" />
+        </label>
+        <img class="preview-image" id="imagePreview" alt="" />
+        <p class="form-error" id="composeError"></p>
+        <button class="primary-button" type="submit">投递</button>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

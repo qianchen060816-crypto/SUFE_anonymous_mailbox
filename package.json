@@ -1,0 +1,13 @@
+{
+  "name": "anonymous-mailbox",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A no-login anonymous question mailbox for sharing in group chats.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
