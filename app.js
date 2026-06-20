@@ -2,7 +2,10 @@ const ADMIN_KEY = "102938";
 const STORAGE_KEY = "anonymous-mailbox-data";
 const SEEN_KEY = "anonymous-mailbox-last-seen";
 const SESSION_KEY = "anonymous-mailbox-session";
-const USE_SHARED_API = location.protocol !== "file:";
+const SUPABASE_URL = "https://bzxungkbteyzhudeczwb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_1s59qmqbZ74ev4WxYe08Dg_2VWLslOI";
+const SUPABASE_TABLE = "mailbox_questions";
+const USE_SUPABASE_DIRECT = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
 const classmates = [
   "\u661f\u661f",
@@ -84,13 +87,18 @@ async function loadData() {
     questions: [],
   };
 
-  if (USE_SHARED_API) {
+  if (USE_SUPABASE_DIRECT) {
     try {
-      const response = await fetch("/api/questions");
+      const response = await supabaseFetch(
+        `/${SUPABASE_TABLE}?select=id,author,text,image,comments,created_at&order=created_at.desc`,
+      );
       if (!response.ok) {
         throw new Error("Failed to load questions");
       }
-      return { ...fallback, ...(await response.json()) };
+      const rows = await response.json();
+      return {
+        questions: rows.map(fromSupabaseQuestion),
+      };
     } catch {
       return fallback;
     }
@@ -284,10 +292,18 @@ async function submitQuestion(event) {
     image: state.pendingImage,
   };
 
-  if (USE_SHARED_API) {
-    await fetchJson("/api/questions", {
+  if (USE_SUPABASE_DIRECT) {
+    await supabaseJson(`/${SUPABASE_TABLE}`, {
       method: "POST",
-      body: question,
+      headers: {
+        Prefer: "return=minimal",
+      },
+      body: {
+        author: question.author,
+        text: question.text,
+        image: question.image,
+        comments: [],
+      },
     });
     await refreshQuestions();
   } else {
@@ -321,12 +337,13 @@ async function submitComment(event) {
     return;
   }
 
-  if (USE_SHARED_API) {
-    await fetchJson(`/api/questions/${questionId}/comments`, {
+  if (USE_SUPABASE_DIRECT) {
+    await supabaseJson("/rpc/add_mailbox_comment", {
       method: "POST",
       body: {
-        author: getDisplayName(),
-        text,
+        question_id: questionId,
+        comment_author: getDisplayName(),
+        comment_text: text,
       },
     });
     input.value = "";
@@ -357,10 +374,13 @@ async function handleQuestionClick(event) {
     return;
   }
 
-  if (USE_SHARED_API) {
-    await fetchJson(`/api/questions/${deleteId}`, {
-      method: "DELETE",
-      admin: true,
+  if (USE_SUPABASE_DIRECT) {
+    await supabaseJson("/rpc/delete_mailbox_question", {
+      method: "POST",
+      body: {
+        question_id: deleteId,
+        admin_key: ADMIN_KEY,
+      },
     });
     await refreshQuestions();
   } else {
@@ -400,20 +420,23 @@ function exitAdmin() {
   renderQuestions();
 }
 
-async function fetchJson(url, options = {}) {
+async function supabaseFetch(pathname, options = {}) {
   const headers = {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
     "Content-Type": "application/json",
+    ...(options.headers || {}),
   };
 
-  if (options.admin) {
-    headers["x-admin-key"] = ADMIN_KEY;
-  }
-
-  const response = await fetch(url, {
+  return fetch(`${SUPABASE_URL.replace(/\/rest\/v1\/?$/, "").replace(/\/$/, "")}/rest/v1${pathname}`, {
     method: options.method ?? "GET",
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
+}
+
+async function supabaseJson(pathname, options = {}) {
+  const response = await supabaseFetch(pathname, options);
 
   if (!response.ok) {
     throw new Error("Request failed");
@@ -424,6 +447,17 @@ async function fetchJson(url, options = {}) {
   }
 
   return response.json();
+}
+
+function fromSupabaseQuestion(row) {
+  return {
+    id: row.id,
+    author: row.author,
+    text: row.text || "",
+    image: row.image || "",
+    comments: Array.isArray(row.comments) ? row.comments : [],
+    createdAt: new Date(row.created_at).getTime(),
+  };
 }
 
 function formatTime(timestamp) {
